@@ -1,3 +1,38 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 29
+    buildToolsVersion "29.0.2"
+    defaultConfig {
+        applicationId "com.andforce.dig"
+        minSdkVersion 21
+        targetSdkVersion 29
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+
+configurations {
+    dig
+}
+
+dependencies {
+
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    dig 'androidx.appcompat:appcompat:1.1.0'
+    dig 'androidx.constraintlayout:constraintlayout:1.1.3'
+}
+
+import java.nio.channels.FileChannel
+
 public static void copyFileUsingChannel(File source, File dest) throws IOException {
     FileChannel sourceChannel = null;
     FileChannel destChannel = null;
@@ -16,12 +51,17 @@ public static void copyFileUsingChannel(File source, File dest) throws IOExcepti
 }
 
 task copyFiles(type: Copy){
-    configurations.myConfig.files.each {file ->
+    configurations.dig.files.each {file ->
 
         String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
         println(" >>>>>>>>>>>>>>>> " + preFix)
 
-        copyFileUsingChannel(file, new File("/home/dy/src/delta-1/packages/apps/netmon/libs_test/" + preFix + "_" + file.name))
+        File digFile = new File("./dig/unzip/")
+        if (!digFile.exists()){
+            digFile.mkdirs()
+        }
+
+        copyFileUsingChannel(file, new File("./dig/" + preFix + "_" + file.name))
     }
 }
 
@@ -35,13 +75,13 @@ task copyLibs(type: Copy) {
     StringBuilder AAPT_FLAG = new StringBuilder()
 
     StringBuilder LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES = new StringBuilder()
-    configurations.myConfig.files.forEach() { file ->
+    configurations.dig.files.forEach() { file ->
 
 
         String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
         println(" >>>>>>>>>>>>>>>> " + preFix)
 
-        File dstFile = new File("/home/dy/src/delta-1/packages/apps/netmon/libs_test/" + preFix + "_" + file.name)
+        File dstFile = new File("./dig/" + preFix + "_" + file.name)
         copyFileUsingChannel(file, dstFile)
 
 
@@ -51,10 +91,10 @@ task copyLibs(type: Copy) {
         if ("aar" == ext) {
             LOCAL_STATIC_JAVA_AAR_LIBRARIES.append(name).append(" ")
 
-            extractArchive("../libs_test/" + dstFile.name,"../libs_test/unzip/" )
+            extractArchive("../dig/" + dstFile.name,"../dig/unzip/" )
             //ant.unzip(src: "../libs_test/" + file.name, dest: "libs_test/unzip/", overwrite: 'true')
 
-            Node xmlParser = new XmlParser().parse("libs_test/unzip/AndroidManifest.xml")
+            Node xmlParser = new XmlParser().parse("./dig/unzip/AndroidManifest.xml")
             String packageName = xmlParser.attributes().get("package")
             AAPT_FLAG.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
 
@@ -92,3 +132,5 @@ String extractArchive(String archiveName, String out) {
         return outputDir
     }
 }
+
+
