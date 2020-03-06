@@ -50,76 +50,6 @@ public static void copyFileUsingChannel(File source, File dest) throws IOExcepti
     }
 }
 
-task copyFiles(type: Copy){
-    configurations.dig.files.each {file ->
-
-        String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
-        println(" >>>>>>>>>>>>>>>> " + preFix)
-
-        File digFile = new File("./dig/unzip/")
-        if (!digFile.exists()){
-            digFile.mkdirs()
-        }
-
-        copyFileUsingChannel(file, new File("./dig/" + preFix + "_" + file.name))
-    }
-}
-
-task copyLibs(type: Copy) {
-
-
-
-    StringBuilder LOCAL_STATIC_JAVA_LIBRARIES = new StringBuilder("LOCAL_STATIC_JAVA_LIBRARIES := ")
-    StringBuilder LOCAL_STATIC_JAVA_AAR_LIBRARIES = new StringBuilder("LOCAL_STATIC_JAVA_AAR_LIBRARIES := ")
-
-    StringBuilder AAPT_FLAG = new StringBuilder()
-
-    StringBuilder LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES = new StringBuilder()
-    configurations.dig.files.forEach() { file ->
-
-
-        String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
-        println(" >>>>>>>>>>>>>>>> " + preFix)
-
-        File dstFile = new File("./dig/" + preFix + "_" + file.name)
-        copyFileUsingChannel(file, dstFile)
-
-
-        String name = "netmon_" + dstFile.name.substring(0, dstFile.name.lastIndexOf("."))
-        String ext = dstFile.name.substring(dstFile.name.lastIndexOf(".") + 1)
-
-        if ("aar" == ext) {
-            LOCAL_STATIC_JAVA_AAR_LIBRARIES.append(name).append(" ")
-
-            extractArchive("../dig/" + dstFile.name,"../dig/unzip/" )
-            //ant.unzip(src: "../libs_test/" + file.name, dest: "libs_test/unzip/", overwrite: 'true')
-
-            Node xmlParser = new XmlParser().parse("./dig/unzip/AndroidManifest.xml")
-            String packageName = xmlParser.attributes().get("package")
-            AAPT_FLAG.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
-
-        } else if ("jar" == ext) {
-            LOCAL_STATIC_JAVA_LIBRARIES.append(name).append(" ")
-        }
-
-        String TMP = "LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES += %s:libs_test/%s"
-        String lib = String.format(TMP, name, dstFile.name)
-        if (!LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.contains(lib)){
-            LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.append(lib).append("\n")
-        }
-    }
-
-    println("#-----------------------------------------------0")
-    println(AAPT_FLAG.toString())
-    println("#-----------------------------------------------1")
-    println(LOCAL_STATIC_JAVA_LIBRARIES.toString())
-    println("#-----------------------------------------------2")
-    println(LOCAL_STATIC_JAVA_AAR_LIBRARIES.toString())
-    println("#-----------------------------------------------3")
-    println(LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.toString())
-}
-
-
 String extractArchive(String archiveName, String out) {
 
     def archive = file(archiveName)
@@ -131,6 +61,80 @@ String extractArchive(String archiveName, String out) {
         ant.unzip(src: archive, dest: outputDir, overwrite: 'true')
         return outputDir
     }
+}
+
+project.afterEvaluate {
+    task copyFiles(type: Copy){
+        configurations.dig.files.each {file ->
+
+            String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
+            println(" >>>>>>>>>>>>>>>> " + preFix)
+
+            File digFile = new File("./dig/unzip/")
+            if (!digFile.exists()){
+                digFile.mkdirs()
+            }
+
+            copyFileUsingChannel(file, new File("./dig/" + preFix + "_" + file.name))
+        }
+    }
+
+    task copyLibs(type: Copy) {
+
+
+
+        StringBuilder LOCAL_STATIC_JAVA_LIBRARIES = new StringBuilder("LOCAL_STATIC_JAVA_LIBRARIES := ")
+        StringBuilder LOCAL_STATIC_JAVA_AAR_LIBRARIES = new StringBuilder("LOCAL_STATIC_JAVA_AAR_LIBRARIES := ")
+
+        StringBuilder AAPT_FLAG = new StringBuilder()
+
+        StringBuilder LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES = new StringBuilder()
+        configurations.dig.files.forEach() { file ->
+
+
+            String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
+            println(" >>>>>>>>>>>>>>>> " + preFix)
+
+            File dstFile = new File("./dig/" + preFix + "_" + file.name)
+            copyFileUsingChannel(file, dstFile)
+
+
+            String name = "netmon_" + dstFile.name.substring(0, dstFile.name.lastIndexOf("."))
+            String ext = dstFile.name.substring(dstFile.name.lastIndexOf(".") + 1)
+
+            if ("aar" == ext) {
+                LOCAL_STATIC_JAVA_AAR_LIBRARIES.append(name).append(" ")
+
+                extractArchive("../dig/" + dstFile.name,"../dig/unzip/" )
+                //ant.unzip(src: "../libs_test/" + file.name, dest: "libs_test/unzip/", overwrite: 'true')
+
+                Node xmlParser = new XmlParser().parse("./dig/unzip/AndroidManifest.xml")
+                String packageName = xmlParser.attributes().get("package")
+                AAPT_FLAG.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
+
+            } else if ("jar" == ext) {
+                LOCAL_STATIC_JAVA_LIBRARIES.append(name).append(" ")
+            }
+
+            String TMP = "LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES += %s:libs_test/%s"
+            String lib = String.format(TMP, name, dstFile.name)
+            if (!LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.contains(lib)){
+                LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.append(lib).append("\n")
+            }
+        }
+
+        println("#-----------------------------------------------0")
+        println(AAPT_FLAG.toString())
+        println("#-----------------------------------------------1")
+        println(LOCAL_STATIC_JAVA_LIBRARIES.toString())
+        println("#-----------------------------------------------2")
+        println(LOCAL_STATIC_JAVA_AAR_LIBRARIES.toString())
+        println("#-----------------------------------------------3")
+        println(LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.toString())
+    }
+
+
+
 }
 
 
