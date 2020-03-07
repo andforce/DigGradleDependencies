@@ -1,0 +1,157 @@
+//apply plugin: 'com.android.application'
+
+import java.nio.channels.FileChannel
+
+static void copyFileUsingChannel(File source, File dest) throws IOException {
+    FileChannel sourceChannel = null
+    FileChannel destChannel = null
+    try {
+        sourceChannel = new FileInputStream(source).getChannel()
+        destChannel = new FileOutputStream(dest).getChannel()
+        destChannel.transferFrom(sourceChannel, 0, sourceChannel.size())
+    } finally {
+        if (sourceChannel != null) {
+            sourceChannel.close()
+        }
+        if (destChannel != null) {
+            destChannel.close()
+        }
+    }
+}
+
+String extractArchive(File archive, File outputDir) {
+
+//    def archive = file(archiveName)
+//    def outputDir = file(out)
+
+    println 'Extracting ' + archive.absolutePath + ' to ' + outputDir
+
+    if (archive.isFile()) {
+        ant.unzip(src: archive, dest: outputDir, overwrite: 'true')
+        return outputDir
+    }
+}
+
+String extractArchive(String archiveName, String out) {
+
+    def archive = file(archiveName)
+    def outputDir = file(out)
+
+    println 'Extracting ' + archiveName + ' to ' + outputDir
+
+    if (archive.isFile()) {
+        ant.unzip(src: archive, dest: outputDir, overwrite: 'true')
+        return outputDir
+    }
+}
+
+void purgeDirectory(File dir) {
+    for (File file : dir.listFiles()) {
+        if (file.isDirectory()){
+            purgeDirectory(file)
+        }
+        file.delete()
+    }
+}
+
+project.afterEvaluate {
+
+    // 先清理
+    File digDir = new File("dig/")
+    if (digDir.exists()){
+        purgeDirectory(digDir)
+    } else {
+        digDir.mkdirs()
+    }
+
+    File unzipDir = new File(digDir, "unzip/")
+    if (!unzipDir.exists()) {
+        unzipDir.mkdirs()
+    }
+
+    println("----->> Current Path:" + digDir.absolutePath)
+
+    //https://stackoverflow.com/questions/47910578/not-able-to-copy-configurations-dependencies-after-upgrading-gradle-plugin-for-a
+    configurations.implementation.setCanBeResolved(true)
+    configurations.api.setCanBeResolved(true)
+
+    task copyFiles(type: Copy) {
+        configurations.implementation.files.each { file ->
+
+            println(" ----->> File Path: " + rootProject.name + " - " + file.getAbsolutePath())
+
+            if (file.absolutePath.contains("/.gradle/caches/")) {
+                String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
+                println(" >>>>>>>>>>>>>>>> " + preFix)
+
+                copyFileUsingChannel(file, new File(digDir, preFix + "_" + file.name))
+            }
+
+        }
+    }
+
+    task copyLibs(type: Copy) {
+
+        StringBuilder LOCAL_STATIC_JAVA_LIBRARIES = new StringBuilder()
+        StringBuilder LOCAL_STATIC_JAVA_AAR_LIBRARIES = new StringBuilder()
+
+        StringBuilder AAPT_FLAG = new StringBuilder()
+
+        StringBuilder LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES = new StringBuilder()
+        configurations.implementation.files.forEach() { file ->
+
+
+            if (file.absolutePath.contains("/.gradle/caches/")) {
+                String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
+                println(" >>>>>>>>>>>>>>>> " + preFix)
+
+                File dstFile = new File(digDir, preFix + "_" + file.name)
+                copyFileUsingChannel(file, dstFile)
+
+
+                String name = rootProject.name + "_" + dstFile.name.substring(0, dstFile.name.lastIndexOf("."))
+                String ext = dstFile.name.substring(dstFile.name.lastIndexOf(".") + 1)
+
+                if ("aar" == ext) {
+                    LOCAL_STATIC_JAVA_AAR_LIBRARIES.append("LOCAL_STATIC_JAVA_AAR_LIBRARIES += ").append(name).append("\n")
+
+                    extractArchive("../dig/" + dstFile.name, "../dig/unzip/")
+
+                    File unzipFile = new File(digDir, dstFile.name)
+                    println("----->> 需要解压的文件：" + unzipFile.absolutePath)
+                    //extractArchive(unzipFile, unzipDir)
+                    
+                    Node xmlParser = new XmlParser().parse(new File(unzipDir, "AndroidManifest.xml"))
+                    String packageName = xmlParser.attributes().get("package")
+                    AAPT_FLAG.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
+
+                } else if ("jar" == ext) {
+                    LOCAL_STATIC_JAVA_LIBRARIES.append("LOCAL_STATIC_JAVA_LIBRARIES += ").append(name).append("\n")
+                }
+
+                String TMP = "LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES += %s:dig/%s"
+                String lib = String.format(TMP, name, dstFile.name)
+                if (!LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.contains(lib)) {
+                    LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.append(lib).append("\n")
+                }
+            }
+        }
+        // 清理
+//        purgeDirectory(unzipDir)
+//        unzipDir.delete()
+
+
+        println("#-----------------------------------------------0")
+        println(AAPT_FLAG.toString())
+        println("#-----------------------------------------------1")
+        println(LOCAL_STATIC_JAVA_LIBRARIES.toString())
+        println("#-----------------------------------------------2")
+        println(LOCAL_STATIC_JAVA_AAR_LIBRARIES.toString())
+        println("#-----------------------------------------------3")
+        println(LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.toString())
+    }
+
+
+}
+
+
