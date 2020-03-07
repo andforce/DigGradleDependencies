@@ -19,33 +19,27 @@ android {
     }
 }
 
-
-configurations {
-    dig
-}
-
 dependencies {
-
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    dig 'androidx.appcompat:appcompat:1.1.0'
-    dig 'androidx.constraintlayout:constraintlayout:1.1.3'
+    implementation 'androidx.appcompat:appcompat:1.1.0'
+    implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
 }
 
 import java.nio.channels.FileChannel
 
-public static void copyFileUsingChannel(File source, File dest) throws IOException {
-    FileChannel sourceChannel = null;
-    FileChannel destChannel = null;
+static void copyFileUsingChannel(File source, File dest) throws IOException {
+    FileChannel sourceChannel = null
+    FileChannel destChannel = null
     try {
-        sourceChannel = new FileInputStream(source).getChannel();
-        destChannel = new FileOutputStream(dest).getChannel();
-        destChannel.transferFrom(sourceChannel, 0, sourceChannel.size());
+        sourceChannel = new FileInputStream(source).getChannel()
+        destChannel = new FileOutputStream(dest).getChannel()
+        destChannel.transferFrom(sourceChannel, 0, sourceChannel.size())
     } finally {
-        if(sourceChannel != null) {
-            sourceChannel.close();
+        if (sourceChannel != null) {
+            sourceChannel.close()
         }
-        if(destChannel != null) {
-            destChannel.close();
+        if (destChannel != null) {
+            destChannel.close()
         }
     }
 }
@@ -63,25 +57,48 @@ String extractArchive(String archiveName, String out) {
     }
 }
 
+void purgeDirectory(File dir) {
+    for (File file : dir.listFiles()) {
+        if (file.isDirectory()){
+            purgeDirectory(file)
+        }
+        file.delete()
+    }
+}
+
 project.afterEvaluate {
-    task copyFiles(type: Copy){
-        configurations.dig.files.each {file ->
 
-            String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
-            println(" >>>>>>>>>>>>>>>> " + preFix)
+    // 先清理
+    File cleanFile = new File("./dig/")
+    if (cleanFile.exists()){
+        purgeDirectory(cleanFile)
+    }
 
-            File digFile = new File("./dig/unzip/")
-            if (!digFile.exists()){
-                digFile.mkdirs()
+    //https://stackoverflow.com/questions/47910578/not-able-to-copy-configurations-dependencies-after-upgrading-gradle-plugin-for-a
+    configurations.implementation.setCanBeResolved(true)
+    configurations.api.setCanBeResolved(true)
+
+    task copyFiles(type: Copy) {
+        configurations.implementation.files.each { file ->
+
+            println(" ----->> File Path: " + rootProject.name + " - " + file.getAbsolutePath())
+
+            if (file.absolutePath.contains("/.gradle/caches/")) {
+                String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
+                println(" >>>>>>>>>>>>>>>> " + preFix)
+
+                File digFile = new File("./dig/unzip/")
+                if (!digFile.exists()) {
+                    digFile.mkdirs()
+                }
+
+                copyFileUsingChannel(file, new File("./dig/" + preFix + "_" + file.name))
             }
 
-            copyFileUsingChannel(file, new File("./dig/" + preFix + "_" + file.name))
         }
     }
 
     task copyLibs(type: Copy) {
-
-
 
         StringBuilder LOCAL_STATIC_JAVA_LIBRARIES = new StringBuilder("LOCAL_STATIC_JAVA_LIBRARIES := ")
         StringBuilder LOCAL_STATIC_JAVA_AAR_LIBRARIES = new StringBuilder("LOCAL_STATIC_JAVA_AAR_LIBRARIES := ")
@@ -89,39 +106,44 @@ project.afterEvaluate {
         StringBuilder AAPT_FLAG = new StringBuilder()
 
         StringBuilder LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES = new StringBuilder()
-        configurations.dig.files.forEach() { file ->
+        configurations.implementation.files.forEach() { file ->
 
 
-            String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
-            println(" >>>>>>>>>>>>>>>> " + preFix)
+            if (file.absolutePath.contains("/.gradle/caches/")) {
+                String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
+                println(" >>>>>>>>>>>>>>>> " + preFix)
 
-            File dstFile = new File("./dig/" + preFix + "_" + file.name)
-            copyFileUsingChannel(file, dstFile)
+                File dstFile = new File("./dig/" + preFix + "_" + file.name)
+                copyFileUsingChannel(file, dstFile)
 
 
-            String name = "netmon_" + dstFile.name.substring(0, dstFile.name.lastIndexOf("."))
-            String ext = dstFile.name.substring(dstFile.name.lastIndexOf(".") + 1)
+                String name = rootProject.name + "_" + dstFile.name.substring(0, dstFile.name.lastIndexOf("."))
+                String ext = dstFile.name.substring(dstFile.name.lastIndexOf(".") + 1)
 
-            if ("aar" == ext) {
-                LOCAL_STATIC_JAVA_AAR_LIBRARIES.append(name).append(" ")
+                if ("aar" == ext) {
+                    LOCAL_STATIC_JAVA_AAR_LIBRARIES.append(name).append(" ")
 
-                extractArchive("../dig/" + dstFile.name,"../dig/unzip/" )
-                //ant.unzip(src: "../libs_test/" + file.name, dest: "libs_test/unzip/", overwrite: 'true')
+                    extractArchive("../dig/" + dstFile.name, "../dig/unzip/")
 
-                Node xmlParser = new XmlParser().parse("./dig/unzip/AndroidManifest.xml")
-                String packageName = xmlParser.attributes().get("package")
-                AAPT_FLAG.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
+                    Node xmlParser = new XmlParser().parse("./dig/unzip/AndroidManifest.xml")
+                    String packageName = xmlParser.attributes().get("package")
+                    AAPT_FLAG.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
 
-            } else if ("jar" == ext) {
-                LOCAL_STATIC_JAVA_LIBRARIES.append(name).append(" ")
-            }
+                } else if ("jar" == ext) {
+                    LOCAL_STATIC_JAVA_LIBRARIES.append(name).append(" ")
+                }
 
-            String TMP = "LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES += %s:libs_test/%s"
-            String lib = String.format(TMP, name, dstFile.name)
-            if (!LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.contains(lib)){
-                LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.append(lib).append("\n")
+                String TMP = "LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES += %s:dig/%s"
+                String lib = String.format(TMP, name, dstFile.name)
+                if (!LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.contains(lib)) {
+                    LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.append(lib).append("\n")
+                }
             }
         }
+        File unzipFile = new File("./dig/unzip/")
+        purgeDirectory(unzipFile)
+        unzipFile.delete()
+
 
         println("#-----------------------------------------------0")
         println(AAPT_FLAG.toString())
@@ -132,7 +154,6 @@ project.afterEvaluate {
         println("#-----------------------------------------------3")
         println(LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.toString())
     }
-
 
 
 }
