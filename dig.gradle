@@ -1,6 +1,8 @@
+import org.gradle.api.internal.artifacts.dependencies.DefaultExternalModuleDependency
+
 import java.nio.channels.FileChannel
 
-static boolean debug(){
+static boolean debug() {
     return false
 }
 
@@ -23,7 +25,7 @@ static void copyFileUsingChannel(File source, File dest) throws IOException {
 
 String extractArchive(File archive, File outputDir) {
 
-    if (debug()){
+    if (debug()) {
         println 'Extracting ' + archive.absolutePath + ' to ' + outputDir
     }
 
@@ -35,7 +37,7 @@ String extractArchive(File archive, File outputDir) {
 
 void purgeDirectory(File dir) {
     for (File file : dir.listFiles()) {
-        if (file.isDirectory()){
+        if (file.isDirectory()) {
             purgeDirectory(file)
         }
         file.delete()
@@ -46,7 +48,7 @@ project.afterEvaluate {
 
     // 先清理
     File digDir = new File(projectDir, "dig/")
-    if (digDir.exists()){
+    if (digDir.exists()) {
         purgeDirectory(digDir)
     } else {
         digDir.mkdirs()
@@ -62,31 +64,42 @@ project.afterEvaluate {
     configurations.api.setCanBeResolved(true)
 
     task copyFiles(type: Copy) {
-        configurations.implementation.files.each { file ->
 
-            if (debug()){
+        configurations.implementation.copy(new Spec<Dependency>() {
+            @Override
+            boolean isSatisfiedBy(Dependency element) {
+                // 依赖有三种，
+                // 1. implementation fileTree(dir: 'libs', include: ['*.jar'])
+                // 2. implementation 'androidx.appcompat:appcompat:1.1.0'
+                // 3. implementation project(path: ':usegson')
+                // 只需要关系第2种，另外两种本来就在本地
+                return element instanceof DefaultExternalModuleDependency
+            }
+        }).files.each { file ->
+            if (debug()) {
                 println(" ----->> implementation jar or aar: " + file.getAbsolutePath())
             }
-
             if (!file.absolutePath.contains(projectDir.absolutePath)) {
                 String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
                 copyFileUsingChannel(file, new File(digDir, preFix + "_" + file.name))
             }
-
         }
+
     }
 
     task copyLibs(type: Copy) {
 
-        StringBuilder LOCAL_STATIC_JAVA_LIBRARIES = new StringBuilder()
-        StringBuilder LOCAL_STATIC_JAVA_AAR_LIBRARIES = new StringBuilder()
+        StringBuilder localStaticJavaJars = new StringBuilder()
+        StringBuilder localStaticJavaAars = new StringBuilder()
+        StringBuilder aaptFlag = new StringBuilder()
+        StringBuilder localPrebuiltStaticJavaLibs = new StringBuilder()
 
-        StringBuilder AAPT_FLAG = new StringBuilder()
-
-        StringBuilder LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES = new StringBuilder()
-        configurations.implementation.files.forEach() { file ->
-
-
+        configurations.implementation.copy(new Spec<Dependency>() {
+            @Override
+            boolean isSatisfiedBy(Dependency element) {
+                return element instanceof DefaultExternalModuleDependency
+            }
+        }).files.each { file ->
             if (!file.absolutePath.contains(projectDir.absolutePath)) {
                 String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
 
@@ -98,24 +111,25 @@ project.afterEvaluate {
                 String ext = dstFile.name.substring(dstFile.name.lastIndexOf(".") + 1)
 
                 if ("aar" == ext) {
-                    LOCAL_STATIC_JAVA_AAR_LIBRARIES.append("LOCAL_STATIC_JAVA_AAR_LIBRARIES += ").append(name).append("\n")
+                    localStaticJavaAars.append("LOCAL_STATIC_JAVA_AAR_LIBRARIES += ").append(name).append("\n")
 
                     extractArchive(new File(digDir, dstFile.name), unzipDir)
-                    
+
                     Node xmlParser = new XmlParser().parse(new File(unzipDir, "AndroidManifest.xml"))
                     String packageName = xmlParser.attributes().get("package")
-                    AAPT_FLAG.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
+                    aaptFlag.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
 
                 } else if ("jar" == ext) {
-                    LOCAL_STATIC_JAVA_LIBRARIES.append("LOCAL_STATIC_JAVA_LIBRARIES += ").append(name).append("\n")
+                    localStaticJavaJars.append("LOCAL_STATIC_JAVA_LIBRARIES += ").append(name).append("\n")
                 }
 
                 String lib = String.format("LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES += %s:%s/dig/%s", name, projectDir.name, dstFile.name)
-                if (!LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.contains(lib)) {
-                    LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.append(lib).append("\n")
+                if (!localPrebuiltStaticJavaLibs.contains(lib)) {
+                    localPrebuiltStaticJavaLibs.append(lib).append("\n")
                 }
             }
         }
+
         // 清理
         purgeDirectory(unzipDir)
         unzipDir.delete()
@@ -123,14 +137,19 @@ project.afterEvaluate {
 
         println("如果你需要 Android.mk 编译，可以把下面的配置填写上去，一般能顺利编译过")
         println("========== ========== Android.mk ========== ==========")
+
         println("#AAPT_FLAG")
-        println(AAPT_FLAG.toString())
+        println(aaptFlag.toString())
+
         println("#LOCAL_STATIC_JAVA_LIBRARIES")
-        println(LOCAL_STATIC_JAVA_LIBRARIES.toString())
+        println(localStaticJavaJars.toString())
+
         println("#LOCAL_STATIC_JAVA_AAR_LIBRARIES")
-        println(LOCAL_STATIC_JAVA_AAR_LIBRARIES.toString())
+        println(localStaticJavaAars.toString())
+
         println("#LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES")
-        println(LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES.toString().trim())
+        println(localPrebuiltStaticJavaLibs.toString().trim())
+
         println("========== ========== Android.mk ========== ==========\n\n")
 
         println("所有通过maven依赖的 aar 和 jar 都已经拷贝到 [" + rootProject.name + File.separator + digDir.parentFile.name + File.separator + digDir.name + File.separator + "] 目录中了")

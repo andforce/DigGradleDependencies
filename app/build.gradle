@@ -2,9 +2,9 @@ apply plugin: 'com.android.application'
 
 //先确保自己的 Project 能编译通过，然后引入 dig.gradle，有两种方式
 //1:通过url引入（要确自己的网络能访问下面的地址）
-apply from: 'https://raw.githubusercontent.com/andforce/DigGradleDependencies/master/dig.gradle'
+//apply from: 'https://raw.githubusercontent.com/andforce/DigGradleDependencies/master/dig.gradle'
 //2:把 dig.gradle 拷贝到你自己的 Project 中
-//apply from: '../dig.gradle'
+apply from: '../dig.gradle'
 
 android {
     compileSdkVersion 29
@@ -29,5 +29,5 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation 'androidx.appcompat:appcompat:1.1.0'
     implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
+    implementation project(path: ':usegson')
 }
-
