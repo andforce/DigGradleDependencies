@@ -16,6 +16,10 @@ dependencies {
 
 ## 如何使用？
 
+由于一个 Project 可能由多个 module 构成，每个 module 依赖的 maven 库可能不一样，只需要把下面的配置，添加到 module 的`build.gradle`即可。
+
+比如添加到`app/build.gradle`具体可以参考本工程。
+
 ```groovy
 //先确保自己的 Project 能编译通过，然后引入 dig.gradle，有两种方式
 //1:通过url引入（要确自己的网络能访问下面的地址）
