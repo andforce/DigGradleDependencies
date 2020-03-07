@@ -6,6 +6,8 @@ apply plugin: 'com.android.application'
 //2:把 dig.gradle 拷贝到你自己的 Project 中
 apply from: '../dig.gradle'
 
+apply from: '../maven.gradle'
+
 android {
     compileSdkVersion 29
     buildToolsVersion "29.0.2"
