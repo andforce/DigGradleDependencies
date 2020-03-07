@@ -30,6 +30,14 @@ apply from: 'https://raw.githubusercontent.com/andforce/DigGradleDependencies/ma
 
 配置完毕后，clean一下工程就能看到所有依赖的 aar 和 jar 了
 
+## 一些有用的命令
+```groovy
+// 显示依赖关系
+./gradlew app:dependencies
+// 强制刷新依赖
+./gradlew build --refresh-dependencies --info | grep "Cached resource" | grep "aar\|jar" | grep applog
+```
+
 
 
 ![dig_clean](README.assets/dig_clean.gif)
