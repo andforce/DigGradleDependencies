@@ -63,7 +63,12 @@ project.afterEvaluate {
     configurations.implementation.setCanBeResolved(true)
     configurations.api.setCanBeResolved(true)
 
-    task copyFiles(type: Copy) {
+    task copyLibs(type: Copy) {
+
+        StringBuilder localStaticJavaJars = new StringBuilder()
+        StringBuilder localStaticJavaAars = new StringBuilder()
+        StringBuilder aaptFlag = new StringBuilder()
+        StringBuilder localPrebuiltStaticJavaLibs = new StringBuilder()
 
         configurations.implementation.copy(new Spec<Dependency>() {
             @Override
@@ -76,57 +81,36 @@ project.afterEvaluate {
                 return element instanceof DefaultExternalModuleDependency
             }
         }).files.each { file ->
+
             if (debug()) {
                 println(" ----->> implementation jar or aar: " + file.getAbsolutePath())
             }
-            if (!file.absolutePath.contains(projectDir.absolutePath)) {
-                String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
-                copyFileUsingChannel(file, new File(digDir, preFix + "_" + file.name))
+
+            String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
+
+            File dstFile = new File(digDir, preFix + "_" + file.name)
+            copyFileUsingChannel(file, dstFile)
+
+
+            String name = rootProject.name + "_" + dstFile.name.substring(0, dstFile.name.lastIndexOf("."))
+            String ext = dstFile.name.substring(dstFile.name.lastIndexOf(".") + 1)
+
+            if ("aar" == ext) {
+                localStaticJavaAars.append("LOCAL_STATIC_JAVA_AAR_LIBRARIES += ").append(name).append("\n")
+
+                extractArchive(new File(digDir, dstFile.name), unzipDir)
+
+                Node xmlParser = new XmlParser().parse(new File(unzipDir, "AndroidManifest.xml"))
+                String packageName = xmlParser.attributes().get("package")
+                aaptFlag.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
+
+            } else if ("jar" == ext) {
+                localStaticJavaJars.append("LOCAL_STATIC_JAVA_LIBRARIES += ").append(name).append("\n")
             }
-        }
 
-    }
-
-    task copyLibs(type: Copy) {
-
-        StringBuilder localStaticJavaJars = new StringBuilder()
-        StringBuilder localStaticJavaAars = new StringBuilder()
-        StringBuilder aaptFlag = new StringBuilder()
-        StringBuilder localPrebuiltStaticJavaLibs = new StringBuilder()
-
-        configurations.implementation.copy(new Spec<Dependency>() {
-            @Override
-            boolean isSatisfiedBy(Dependency element) {
-                return element instanceof DefaultExternalModuleDependency
-            }
-        }).files.each { file ->
-            if (!file.absolutePath.contains(projectDir.absolutePath)) {
-                String preFix = file.getParentFile().getParentFile().getParentFile().getParentFile().getName()
-
-                File dstFile = new File(digDir, preFix + "_" + file.name)
-                copyFileUsingChannel(file, dstFile)
-
-
-                String name = rootProject.name + "_" + dstFile.name.substring(0, dstFile.name.lastIndexOf("."))
-                String ext = dstFile.name.substring(dstFile.name.lastIndexOf(".") + 1)
-
-                if ("aar" == ext) {
-                    localStaticJavaAars.append("LOCAL_STATIC_JAVA_AAR_LIBRARIES += ").append(name).append("\n")
-
-                    extractArchive(new File(digDir, dstFile.name), unzipDir)
-
-                    Node xmlParser = new XmlParser().parse(new File(unzipDir, "AndroidManifest.xml"))
-                    String packageName = xmlParser.attributes().get("package")
-                    aaptFlag.append("LOCAL_AAPT_FLAGS += --generate-dependencies --auto-add-overlay --extra-packages ").append(packageName).append("\n")
-
-                } else if ("jar" == ext) {
-                    localStaticJavaJars.append("LOCAL_STATIC_JAVA_LIBRARIES += ").append(name).append("\n")
-                }
-
-                String lib = String.format("LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES += %s:%s/dig/%s", name, projectDir.name, dstFile.name)
-                if (!localPrebuiltStaticJavaLibs.contains(lib)) {
-                    localPrebuiltStaticJavaLibs.append(lib).append("\n")
-                }
+            String lib = String.format("LOCAL_PREBUILT_STATIC_JAVA_LIBRARIES += %s:%s/dig/%s", name, projectDir.name, dstFile.name)
+            if (!localPrebuiltStaticJavaLibs.contains(lib)) {
+                localPrebuiltStaticJavaLibs.append(lib).append("\n")
             }
         }
 
