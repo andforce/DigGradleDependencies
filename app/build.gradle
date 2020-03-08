@@ -4,9 +4,13 @@ apply plugin: 'com.android.application'
 //1:通过url引入（要确自己的网络能访问下面的地址）
 //apply from: 'https://raw.githubusercontent.com/andforce/DigGradleDependencies/master/dig.gradle'
 //2:把 dig.gradle 拷贝到你自己的 Project 中
-apply from: '../dig.gradle'
+//apply from: '../dig.gradle'
+//
+//apply from: '../maven.gradle'
 
-apply from: '../maven.gradle'
+apply from: '../trans-builder.gradle'
+
+apply from: '../trans-maven.gradle'
 
 android {
     compileSdkVersion 29

@@ -1,0 +1,59 @@
+apply plugin: "maven-publish"
+
+publishing {
+
+    publications {
+
+        maven(MavenPublication) {
+            groupId 'com.bytedance.common_business'
+            artifactId 'applog'
+            version '2.10.1-rc.8'
+
+            def f = new File('applog-2.10.1-rc.8.aar')
+            if (!f.exists()) {
+                new URL('http://ttandroid.byted.org/repository/ttandroid/com/bytedance/common_business/applog/2.10.1-rc.8/applog-2.10.1-rc.8.aar').withInputStream { i ->
+                    f.withOutputStream {
+                        it << i
+                    }
+                }
+            }
+
+            def pomXml = new File('applog-2.10.1-rc.8.pom')
+            if (!pomXml.exists()) {
+                new URL('http://ttandroid.byted.org/repository/ttandroid/com/bytedance/common_business/applog/2.10.1-rc.8/applog-2.10.1-rc.8.pom').withInputStream { i ->
+                    pomXml.withOutputStream {
+                        it << i
+                    }
+                }
+            }
+
+            artifact(f)
+            def parsedXml = (new XmlParser()).parse(pomXml)
+
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+
+                parsedXml.dependencies.dependency.each {
+                    def groupId = it.groupId[0].children()[0]
+                    def artifactId = it.artifactId[0].children()[0]
+                    def version = it.version[0].children()[0]
+                    def scope = it.scope[0].children()[0]
+
+                    println '----->> dependency:' + groupId + ":" + artifactId + ":" + version + "-" + scope
+
+                    def dependencyNode = dependenciesNode.appendNode('dependency')
+                    dependencyNode.appendNode('groupId', groupId)
+                    dependencyNode.appendNode('artifactId', artifactId)
+                    dependencyNode.appendNode('version', version)
+                    dependencyNode.appendNode('scope', scope)
+                }
+            }
+        }
+
+    }
+    repositories {
+        maven {
+            url "./repo"
+        }
+    }
+}

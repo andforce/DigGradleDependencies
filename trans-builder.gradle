@@ -1,0 +1,115 @@
+task buildMavenTranser {
+
+    doLast {
+        String mavenTemplate = "" +
+                "%s(MavenPublication) {\n" +
+                "            groupId '%s'\n" +
+                "            artifactId '%s'\n" +
+                "            version '%s'\n" +
+                "\n" +
+                "            def f = new File(project.buildDir, '%s')\n" +
+                "            if (!f.exists()) {\n" +
+                "                new URL('%s').withInputStream { i ->\n" +
+                "                    f.withOutputStream {\n" +
+                "                        it << i\n" +
+                "                    }\n" +
+                "                }\n" +
+                "            }\n" +
+                "\n" +
+                "            def pomXml = new File(project.buildDir, '%s')\n" +
+                "            if (!pomXml.exists()) {\n" +
+                "                new URL('%s').withInputStream { i ->\n" +
+                "                    pomXml.withOutputStream {\n" +
+                "                        it << i\n" +
+                "                    }\n" +
+                "                }\n" +
+                "            }\n" +
+                "\n" +
+                "            artifact(f)\n" +
+                "            def parsedXml = (new XmlParser()).parse(pomXml)\n" +
+                "\n" +
+                "            pom.withXml {\n" +
+                "                def dependenciesNode = asNode().appendNode('dependencies')\n" +
+                "\n" +
+                "                parsedXml.dependencies.dependency.each {\n" +
+                "                    def groupId = it.groupId[0].children()[0]\n" +
+                "                    def artifactId = it.artifactId[0].children()[0]\n" +
+                "                    def version = it.version[0].children()[0]\n" +
+                "                    def scope = it.scope[0].children()[0]\n" +
+                "\n" +
+                "                    println '----->> dependency:' + groupId + \":\" + artifactId + \":\" + version + \"-\" + scope\n" +
+                "\n" +
+                "                    def dependencyNode = dependenciesNode.appendNode('dependency')\n" +
+                "                    dependencyNode.appendNode('groupId', groupId)\n" +
+                "                    dependencyNode.appendNode('artifactId', artifactId)\n" +
+                "                    dependencyNode.appendNode('version', version)\n" +
+                "                    dependencyNode.appendNode('scope', scope)\n" +
+                "                }\n" +
+                "            }\n" +
+                "        }"
+
+        String publishTemplate = "" +
+                "apply plugin: \"maven-publish\"\n" +
+                "\n" +
+                "publishing {\n" +
+                "\n" +
+                "    publications {\n" +
+                "        %s\n" +
+                "    }\n" +
+                "    repositories {\n" +
+                "        maven {\n" +
+                "            //url \"./repo\"\n" +
+                "            url \"地址\"\n" +
+                "            credentials {\n" +
+                "                username '用户名'\n" +
+                "                password '密码'\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}"
+
+        List<String> trans = []
+
+
+        StringBuilder mavenUpload = new StringBuilder()
+
+        trans.each {
+
+            String pomUrl = it.replace(".aar", "").replace(".jar", "") + ".pom"
+
+            String pomFile = pomUrl.substring(it.lastIndexOf('/') + 1)
+
+            def pomXml = new File(project.buildDir, pomFile)
+            pomXml.delete()
+            new URL(pomUrl).withInputStream { i ->
+                pomXml.withOutputStream {
+                    it << i
+                }
+            }
+
+            def parsedXml = (new XmlParser()).parse(pomXml)
+            def rootGroupId = parsedXml.groupId[0].children()[0]
+            def rootArtifactId = parsedXml.artifactId[0].children()[0]
+            def rootVersion = parsedXml.version[0].children()[0]
+            def rootPackaging = it.substring(it.lastIndexOf(".") + 1)
+            //println '----->> root:' + rootGroupId + ":" + rootArtifactId + ":" + rootVersion + "-" + rootPackaging
+
+            String maven = String.format(mavenTemplate, rootArtifactId.toString().replace("-", "_"), rootGroupId, rootArtifactId, rootVersion,
+                    rootGroupId + rootArtifactId + "-" + rootVersion + "." + rootPackaging, it,
+                    pomFile, pomUrl)
+
+            mavenUpload.append(maven).append('\n').append("        ").append('\n')
+        }
+
+        def libraries = new File("trans-maven.gradle")
+        libraries.text = String.format(publishTemplate, mavenUpload.toString())
+
+        println("转移脚本已经生成：" + libraries.getAbsolutePath())
+        println("打开它，配置【地址】【用户名】【密码】，并在你的Project中引入就可以上传了")
+        println("比如：app/build.gradle")
+        println("apply from: '../trans-maven.gradle'")
+        println("./gradlew publish 就能上传了")
+    }
+
+
+}
