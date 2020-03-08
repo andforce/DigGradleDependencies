@@ -35,7 +35,7 @@ apply from: 'https://raw.githubusercontent.com/andforce/DigGradleDependencies/ma
 // 显示依赖关系
 ./gradlew app:dependencies
 // 强制刷新依赖
-./gradlew build --refresh-dependencies --info | grep "Cached resource" | grep "aar\|jar" | grep applog
+./gradlew build --refresh-dependencies --info | grep "Cached resource" | grep "aar\|jar"
 ```
 
 

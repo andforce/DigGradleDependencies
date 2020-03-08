@@ -69,6 +69,12 @@ task buildMavenTranser {
                 "}"
 
         List<String> trans = []
+        def config = file("../libs.txt")
+        config.eachLine { line ->
+            String content = line
+            println("----->>" + content)
+            trans.add(line)
+        }
 
 
         StringBuilder mavenUpload = new StringBuilder()
